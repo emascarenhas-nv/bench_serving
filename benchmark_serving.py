@@ -349,37 +349,38 @@ async def benchmark(
         raise ValueError(f"Unknown backend: {backend}")
 
     print("Starting initial single prompt test run...")
-    test_prompt, test_prompt_len, test_output_len, test_mm_content = (
+    _, _, _, test_mm_content = (
         input_requests[0])
     if backend != "openai-chat" and test_mm_content is not None:
         # multi-modal benchmark is only available on OpenAI Chat backend.
         raise ValueError(
             "Multi-modal content is only supported on 'openai-chat' backend.")
-    test_input = RequestFuncInput(
-        model=model_id,
-        model_name=model_name,
-        prompt=test_prompt,
-        api_url=api_url,
-        prompt_len=test_prompt_len,
-        output_len=test_output_len,
-        logprobs=logprobs,
-        best_of=best_of,
-        multi_modal_content=test_mm_content,
-        ignore_eos=ignore_eos,
-    )
 
     if num_warmups > 0:
         print(f"Warming up with {num_warmups} requests...")
         warmup_pbar = None if disable_tqdm else tqdm(total=num_warmups)
         warmup_semaphore = asyncio.Semaphore(max_concurrency) if max_concurrency else contextlib.nullcontext()
 
-        async def warmup_limited_req_fn():
+        async def warmup_limited_req_fn(test_input):
             async with warmup_semaphore:
                 return await request_func(request_func_input=test_input, pbar=warmup_pbar)
 
         warmup_tasks = []
-        for _ in range(num_warmups):
-            task = asyncio.create_task(warmup_limited_req_fn())
+        for warmup_request in input_requests[:num_warmups]:
+            test_prompt, test_prompt_len, test_output_len, test_mm_content = warmup_request
+            test_input = RequestFuncInput(
+                model=model_id,
+                model_name=model_name,
+                prompt=test_prompt,
+                api_url=api_url,
+                prompt_len=test_prompt_len,
+                output_len=test_output_len,
+                logprobs=logprobs,
+                best_of=best_of,
+                multi_modal_content=test_mm_content,
+                ignore_eos=ignore_eos,
+            )
+            task = asyncio.create_task(warmup_limited_req_fn(test_input))
             warmup_tasks.append(task)
         _ = await asyncio.gather(*warmup_tasks)
 
