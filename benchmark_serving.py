@@ -342,6 +342,9 @@ async def benchmark(
     goodput_config_dict: Dict[str, float],
     max_concurrency: Optional[int],
     lora_modules: Optional[List[str]],
+    profile_start_step: Optional[int] = None,
+    profile_num_steps: Optional[int] = None,
+    profile_nsys: Optional[bool] = False,
 ):
     if backend in ASYNC_REQUEST_FUNCS:
         request_func = ASYNC_REQUEST_FUNCS[backend]
@@ -392,7 +395,7 @@ async def benchmark(
         lora_modules = iter(
             [random.choice(lora_modules) for _ in range(len(input_requests))])
 
-    if profile:
+    if profile or profile_nsys:
         print("Starting profiler...")
         profile_input = RequestFuncInput(model=model_id,
                                          model_name=model_name,
@@ -404,7 +407,7 @@ async def benchmark(
                                          best_of=best_of,
                                          multi_modal_content=test_mm_content,
                                          ignore_eos=ignore_eos)
-        profile_output = await request_func(request_func_input=profile_input)
+        profile_output = await request_func(request_func_input=profile_input, start_step=profile_start_step, num_steps=profile_num_steps, nsys=profile_nsys)
         if profile_output.success:
             print("Profiler started")
 
@@ -689,6 +692,9 @@ def main(args: argparse.Namespace):
             disable_tqdm=args.disable_tqdm,
             num_warmups=args.num_warmups,
             profile=args.profile,
+            profile_start_step=args.profile_start_step,
+            profile_num_steps=args.profile_num_steps,
+            profile_nsys=args.profile_nsys,
             selected_percentile_metrics=args.percentile_metrics.split(","),
             selected_percentiles=[
                 float(p) for p in args.metric_percentiles.split(",")
@@ -883,6 +889,24 @@ if __name__ == "__main__":
         action="store_true",
         help="Use Torch Profiler. The endpoint must be launched with "
         "VLLM_TORCH_PROFILER_DIR to enable profiler.",
+    )
+    parser.add_argument(
+        "--profile-start-step",
+        help="Start step for profiler (SGLang nsys profiling)",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--profile-num-steps",
+        help="Number of profiler steps (SGLang nsys profiling)",
+        type=int,
+        default=None,
+    )
+    parser.add_argument(
+        "--profile-nsys",
+        action="store_true",
+        help="Use nsys profiler. The endpoint must be launched with "
+        "nsys support enabled (SGLang).",
     )
     parser.add_argument(
         "--save-result",

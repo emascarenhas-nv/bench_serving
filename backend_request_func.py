@@ -234,6 +234,9 @@ async def async_request_deepspeed_mii(
 async def async_request_openai_completions(
     request_func_input: RequestFuncInput,
     pbar: Optional[tqdm] = None,
+    start_step: Optional[int] = None,
+    num_steps: Optional[int] = None,
+    nsys: Optional[bool] = False
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith(
@@ -259,6 +262,12 @@ async def async_request_openai_completions(
             payload["ignore_eos"] = request_func_input.ignore_eos
         if request_func_input.extra_body:
             payload.update(request_func_input.extra_body)
+        if start_step is not None:
+            payload["start_step"] = start_step
+        if nsys:
+            payload["activities"] = ["CUDA_PROFILER"]
+        if num_steps is not None:
+            payload["num_steps"] = num_steps
         headers = {
             "Authorization": f"Bearer {os.environ.get('OPENAI_API_KEY')}"
         }
