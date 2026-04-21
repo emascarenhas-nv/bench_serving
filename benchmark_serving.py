@@ -345,6 +345,7 @@ async def benchmark(
     profile_start_step: Optional[int] = None,
     profile_num_steps: Optional[int] = None,
     profile_nsys: Optional[bool] = False,
+    record_expert_distribution: bool = False,
 ):
     if backend in ASYNC_REQUEST_FUNCS:
         request_func = ASYNC_REQUEST_FUNCS[backend]
@@ -410,6 +411,21 @@ async def benchmark(
         profile_output = await request_func(request_func_input=profile_input, start_step=profile_start_step, num_steps=profile_num_steps, nsys=profile_nsys)
         if profile_output.success:
             print("Profiler started")
+
+    if record_expert_distribution:
+        print("Starting expert-distribution recorder...")
+        recorder_input = RequestFuncInput(
+            model=model_id,
+            prompt=test_prompt,
+            api_url=base_url + "/start_expert_distribution_record",
+            prompt_len=test_prompt_len,
+            output_len=test_output_len,
+            logprobs=logprobs,
+            best_of=best_of,
+        )
+        recorder_output = await request_func(request_func_input=recorder_input)
+        if recorder_output.success:
+            print("Expert-distribution recorder started")
 
     if burstiness == 1.0:
         distribution = "Poisson process"
@@ -478,6 +494,31 @@ async def benchmark(
         profile_output = await request_func(request_func_input=profile_input)
         if profile_output.success:
             print("Profiler stopped")
+
+    if record_expert_distribution:
+        print("Stopping expert-distribution recorder...")
+        recorder_input = RequestFuncInput(
+            model=model_id,
+            prompt=test_prompt,
+            api_url=base_url + "/stop_expert_distribution_record",
+            prompt_len=test_prompt_len,
+            output_len=test_output_len,
+            logprobs=logprobs,
+            best_of=best_of,
+        )
+        await request_func(request_func_input=recorder_input)
+        print("Dumping expert-distribution recorder...")
+        recorder_input = RequestFuncInput(
+            model=model_id,
+            prompt=test_prompt,
+            api_url=base_url + "/dump_expert_distribution_record",
+            prompt_len=test_prompt_len,
+            output_len=test_output_len,
+            logprobs=logprobs,
+            best_of=best_of,
+        )
+        await request_func(request_func_input=recorder_input)
+        print("Expert-distribution recorder dumped")
 
     if pbar is not None:
         pbar.close()
@@ -695,6 +736,7 @@ def main(args: argparse.Namespace):
             profile_start_step=args.profile_start_step,
             profile_num_steps=args.profile_num_steps,
             profile_nsys=args.profile_nsys,
+            record_expert_distribution=args.record_expert_distribution,
             selected_percentile_metrics=args.percentile_metrics.split(","),
             selected_percentiles=[
                 float(p) for p in args.metric_percentiles.split(",")
@@ -907,6 +949,15 @@ if __name__ == "__main__":
         action="store_true",
         help="Use nsys profiler. The endpoint must be launched with "
         "nsys support enabled (SGLang).",
+    )
+    parser.add_argument(
+        "--record-expert-distribution",
+        action="store_true",
+        help="Fire /start_expert_distribution_record after warmup, then "
+        "/stop + /dump_expert_distribution_record after the main benchmark. "
+        "Requires the sglang server to be launched with "
+        "--expert-distribution-recorder-mode per_pass (or per_token) and "
+        "the env SGLANG_EXPERT_DISTRIBUTION_RECORDER_DIR set.",
     )
     parser.add_argument(
         "--save-result",
