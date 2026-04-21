@@ -240,8 +240,8 @@ async def async_request_openai_completions(
 ) -> RequestFuncOutput:
     api_url = request_func_input.api_url
     assert api_url.endswith(
-        ("completions", "profile")
-    ), "OpenAI Completions API URL must end with 'completions' or 'profile'."
+        ("completions", "profile", "record")
+    ), "OpenAI Completions API URL must end with 'completions', 'profile', or 'record'."
 
     async with aiohttp.ClientSession(trust_env=True,
                                      timeout=AIOHTTP_TIMEOUT) as session:
